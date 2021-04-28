@@ -1,4 +1,6 @@
 kafka:
   bootstrapAddress: localhost:9092
+  consumer:
+    groupId: order-prosessor
 server:
   port: 8081

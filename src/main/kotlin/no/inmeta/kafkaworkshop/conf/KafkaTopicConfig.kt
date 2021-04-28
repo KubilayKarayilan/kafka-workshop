@@ -18,7 +18,6 @@ class KafkaTopicConfig {
     @Value(value = "\${kafka.bootstrapAddress}")
     private val bootstrapAddress: String? = null
 
-
     @Bean
     fun kafkaAdmin(): KafkaAdmin? {
         val configs: MutableMap<String, Any?> = HashMap()
