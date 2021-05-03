@@ -2,5 +2,10 @@ kafka:
   bootstrapAddress: localhost:9092
   consumer:
     groupId: order-prosessor
+  producer:
+    clientId: payment-initiator
+  topic:
+    payment: payment
+    order: order
 server:
   port: 8081
