@@ -8,9 +8,7 @@ import org.apache.kafka.streams.KafkaStreams
 import org.apache.kafka.streams.StreamsBuilder
 import org.apache.kafka.streams.StreamsConfig
 import org.apache.kafka.streams.errors.LogAndContinueExceptionHandler
-import org.apache.kafka.streams.kstream.Consumed
-import org.apache.kafka.streams.kstream.JoinWindows
-import org.apache.kafka.streams.kstream.KStream
+import org.apache.kafka.streams.kstream.*
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
@@ -38,7 +36,10 @@ class KafkaService {
         val props = Properties()
         props[StreamsConfig.APPLICATION_ID_CONFIG] = "order-payment-stream-1"
         props[StreamsConfig.BOOTSTRAP_SERVERS_CONFIG] = "localhost:9092"
-        props[StreamsConfig.DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG] = LogAndContinueExceptionHandler::class.java
+        props[StreamsConfig.DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG] =
+            LogAndContinueExceptionHandler::class.java
+        props[StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG] = Serdes.String()::class.java
+        props[StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG] = Serdes.String()::class.java
         val builder = StreamsBuilder()
 
         val orderStream: KStream<String, Order> = builder.stream(
@@ -48,29 +49,32 @@ class KafkaService {
             it.amount != BigDecimal(0)
         }.selectKey { _, order ->
             order.orderId
-        }.peek{key,value ->
+        }.peek { key, value ->
             println("key: $key amount ${value.amount}")
         }
 
-       val paymentStream: KStream<String, Payment> = builder.stream(
+        val paymentStream: KStream<String, Payment> = builder.stream(
             paymentTopicName,
             Consumed.with(Serdes.String(), KCustomSerdes(Payment::class.java))
         ).selectKey { _, payment ->
             payment.orderId
-        }.peek{key,value ->
+        }.peek { key, value ->
             println("key: $key item ${value.item}")
         }
-
-       paymentStream.join(
+        val valueJoiner =
+            ValueJoiner<Payment, Order, Pair<Payment, Order>> { payment, order -> Pair<Payment, Order>(payment, order) }
+        paymentStream.join(
             orderStream,
-            { payment, order -> Pair(payment, order) },
-            JoinWindows.of(Duration.ofMinutes(5))
-        ).foreach{key, value ->
-            println("common key $key")
-            println("value ${value.first.orderId}")
+            valueJoiner,
+            JoinWindows.of(Duration.ofMinutes(5)),
+            StreamJoined.with(
+                Serdes.String(), KCustomSerdes(Payment::class.java), KCustomSerdes(Order::class.java)
+            )
+        ).foreach { key, value ->
+            println("this is the result of join operation on key $key payment item name ${value.first.item} orderId ${value.second.orderId}")
         }
         val topology = builder.build()
-        val streams = KafkaStreams(topology,props)
+        val streams = KafkaStreams(topology, props)
         streams.start()
         println(topology.describe())
 
