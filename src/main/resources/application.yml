@@ -4,6 +4,8 @@ kafka:
     groupId: order-prosessor
   producer:
     clientId: payment-initiator
+  stores:
+    paymentOrder: payment-order-joinOn-orderId
   topic:
     payment: payment
     order: order
